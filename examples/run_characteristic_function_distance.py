@@ -53,8 +53,9 @@ def get_h_dc(n_jumps: float, eps_dc: float, t: float = 1.0):
 def main():
     sigma = 0
     seed = 42
+    T = 1.0
     sde = AdditiveSDE(drift_coefficient=lambda t, x: 0.0, diffusion_coefficient=lambda t, x: 0.0, sigma=sigma)
-    params = SimulationParams(T=1.0, N=0, x0=0.0, random_seed=seed)
+    params = SimulationParams(T=T, N=0, x0=0.0, random_seed=seed)
 
     alpha = 1.5
     NJ = 250
@@ -91,8 +92,8 @@ def main():
     dc_samples = np.array([path.values[-1] for path in paths_dc_alpha_stable])
 
     # --- Compute Distances ---
-    dist_ar, xi_grid, phi_ar, phi_true_vals = compute_l2_distance(samples=ar_samples, alpha=alpha, sigma=sigma, t=1.0)
-    dist_dc, _, phi_dc, _ = compute_l2_distance(samples=dc_samples, alpha=alpha, sigma=sigma, t=1.0)
+    dist_ar, xi_grid, phi_ar, phi_true_vals = compute_l2_distance(samples=ar_samples, alpha=alpha, sigma=sigma, t=T)
+    dist_dc, _, phi_dc, _ = compute_l2_distance(samples=dc_samples, alpha=alpha, sigma=sigma, t=T)
 
     print(f"Weighted L2 Distance (AR): {dist_ar:.8f}")
     print(f"Weighted L2 Distance (DC): {dist_dc:.8f}")
@@ -111,7 +112,7 @@ def main():
     plt.grid(True, alpha=0.3)
     plt.xlim(-4, 4)
 
-    plt.savefig(f"cf_distance_comparison_sigma_{sigma}_seed_{seed}.png")
+    plt.savefig(f"cf_distance_comparison_sigma_{sigma}_T_{T}_seed_{seed}.png")
 
 
 if __name__ == "__main__":
