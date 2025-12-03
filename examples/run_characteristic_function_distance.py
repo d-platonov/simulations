@@ -112,7 +112,7 @@ def main():
     plt.grid(True, alpha=0.3)
     plt.xlim(-4, 4)
 
-    plt.savefig(f"cf_distance_comparison_sigma_{sigma}_T_{T}_seed_{seed}.png")
+    plt.savefig(f"./plots/cf_distance_comparison_sigma_{sigma}_T_{T}_seed_{seed}.png")
 
 
 if __name__ == "__main__":
