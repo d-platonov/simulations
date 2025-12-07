@@ -13,6 +13,13 @@ from levy_type import (
 )
 
 
+def _values_at_times(path: Path, target_times: np.ndarray) -> np.ndarray:
+    """Evaluate a stepwise-constant path at the requested times."""
+    indices = np.searchsorted(path.times, target_times, side="right") - 1
+    indices = np.clip(indices, 0, len(path.values) - 1)
+    return path.values[indices]
+
+
 def combine_paths(paths: list[Path]) -> Path:
     """
     Combines a list of Path objects into a single Path by taking the
@@ -24,13 +31,26 @@ def combine_paths(paths: list[Path]) -> Path:
     total_values = np.zeros_like(unified_times, dtype=np.float64)
 
     for p in paths:
-        indices = np.searchsorted(p.times, unified_times, side='right') - 1
-        indices = np.maximum(indices, 0)
-        total_values += p.values[indices]
+        total_values += _values_at_times(p, unified_times)
 
     mean_values = total_values / len(paths)
 
     return Path(times=unified_times, values=mean_values)
+
+
+def running_sup_abs_error(estimated: Path, truth: Path) -> Path:
+    """Running sup_{0<=s<=t} of |estimated - truth| along all jump times."""
+    unified_times = np.union1d(estimated.times, truth.times)
+    abs_error = np.abs(_values_at_times(estimated, unified_times) - _values_at_times(truth, unified_times))
+    return Path(times=unified_times, values=np.maximum.accumulate(abs_error))
+
+
+def trim_at_plateau(path: Path, *, atol: float = 0.0, rtol: float = 0.0) -> Path:
+    """Keep values up to (and including) the first time the running value hits its final plateau."""
+    final_value = path.values[-1]
+    hits = np.isclose(path.values, final_value, atol=atol, rtol=rtol)
+    first_hit_idx = int(np.argmax(hits))
+    return Path(times=path.times[: first_hit_idx + 1], values=path.values[: first_hit_idx + 1])
 
 
 def main():
@@ -43,10 +63,10 @@ def main():
 
     # Weak error settings
     p = 0.3
-    func = lambda x: np.abs(x) ** p
+    transform = lambda x: np.abs(x) ** p
 
     # AR / DC settings
-    NJ = 100
+    NJ = 100  # Expected number of jumps per path
     delta = get_delta_ar(n_jumps=NJ, alpha=alpha, t=T)
     eps = get_eps_dc(alpha=alpha, sigma=sigma)
     h = get_h_dc(n_jumps=NJ, eps_dc=eps, t=T)
@@ -58,6 +78,15 @@ def main():
     )
     params = SimulationParams(T=T, N=0, x0=0.0, random_seed=random_seed)
 
+    def simulate_mean_path(simulator: ProcessSimulator) -> Path:
+        transformed_paths = []
+        for path in simulator.simulate_many(n=n_paths):
+            transformed_paths.append(Path(times=path.times, values=transform(path.values)))
+        return combine_paths(transformed_paths)
+
+    def true_moment_path(times: np.ndarray) -> Path:
+        return Path(times=times, values=true_alpha_stable_moment(p=p, alpha=alpha, t=times, sigma=sigma))
+
     simulator_ar = ProcessSimulator(
         sde=sde,
         jump_law={
@@ -65,26 +94,13 @@ def main():
             JumpSign.NEGATIVE: AlphaStableAR(alpha=alpha, delta=delta),
         },
         params=params,
-        approximate_small_jumps=False,
+        approximate_small_jumps=True,
         compensate_large_jumps=False,
     )
 
-    paths_ar = simulator_ar.simulate_many(n=n_paths)
-
-    # Apply Weak Error Function
-    for path in paths_ar:
-        path.values = func(path.values)
-
-    combined_path_ar = combine_paths(paths_ar)
-    true_path = Path(
-        times=combined_path_ar.times,
-        values=true_alpha_stable_moment(p=p, alpha=alpha, t=combined_path_ar.times, sigma=sigma),
-    )
-    plot_paths(
-        [combined_path_ar, true_path],
-        title="Cumulative Weak Error for Alpha-Stable Process (AR)",
-        labels=["Estimated", "True"],
-    )
+    mean_path_ar = simulate_mean_path(simulator_ar)
+    true_path_ar = true_moment_path(mean_path_ar.times)
+    running_error_ar = running_sup_abs_error(mean_path_ar, true_path_ar)
 
     simulator_dc = ProcessSimulator(
         sde=sde,
@@ -93,21 +109,31 @@ def main():
             JumpSign.NEGATIVE: AlphaStableDC(alpha=alpha, h=h, eps=eps),
         },
         params=params,
-        approximate_small_jumps=False,
+        approximate_small_jumps=True,
         compensate_large_jumps=False,
     )
 
-    paths_dc = simulator_dc.simulate_many(n=n_paths)
+    mean_path_dc = simulate_mean_path(simulator_dc)
+    true_path_dc = true_moment_path(mean_path_dc.times)
+    running_error_dc = running_sup_abs_error(mean_path_dc, true_path_dc)
 
-    # Apply Weak Error Function
-    for path in paths_dc:
-        path.values = func(path.values)
-
-    combined_path_dc = combine_paths(paths_dc)
     plot_paths(
-        [combined_path_dc, true_path],
-        title="Cumulative Weak Error for Alpha-Stable Process (DC)",
+        [mean_path_ar, true_path_ar],
+        title="Estimated vs. True Moment (AR)",
         labels=["Estimated", "True"],
+    )
+
+    plot_paths(
+        [mean_path_dc, true_path_dc],
+        title="Estimated vs. True Moment (DC)",
+        labels=["Estimated", "True"],
+    )
+
+    plot_paths(
+        [trim_at_plateau(running_error_ar), trim_at_plateau(running_error_dc)],
+        title="Running Sup Weak Error",
+        ylabel="sup_{0<=s<=t} |E[f(X_s)] - true|",
+        labels=["AR", "DC"],
     )
 
 
