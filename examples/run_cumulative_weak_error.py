@@ -45,10 +45,10 @@ def running_sup_abs_error(estimated: Path, truth: Path) -> Path:
     return Path(times=unified_times, values=np.maximum.accumulate(abs_error))
 
 
-def trim_at_plateau(path: Path, *, atol: float = 0.0, rtol: float = 0.0) -> Path:
+def trim_at_plateau(path: Path) -> Path:
     """Keep values up to (and including) the first time the running value hits its final plateau."""
     final_value = path.values[-1]
-    hits = np.isclose(path.values, final_value, atol=atol, rtol=rtol)
+    hits = np.isclose(path.values, final_value)
     first_hit_idx = int(np.argmax(hits))
     return Path(times=path.times[: first_hit_idx + 1], values=path.values[: first_hit_idx + 1])
 
