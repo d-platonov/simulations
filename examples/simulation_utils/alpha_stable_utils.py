@@ -14,7 +14,7 @@ def get_delta_ar(n_jumps: float, alpha: float, t: float = 1.0):
 
 
 def get_eps_dc(alpha: float, sigma: float):
-    return alpha * sigma
+    return alpha * sigma if sigma > 0.0 else 0.1
 
 
 def get_h_dc(n_jumps: float, eps_dc: float, t: float = 1.0):

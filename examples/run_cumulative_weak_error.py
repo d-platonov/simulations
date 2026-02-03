@@ -132,7 +132,6 @@ def main():
     plot_paths(
         [trim_at_plateau(running_error_ar), trim_at_plateau(running_error_dc)],
         title="Running Sup Weak Error",
-        ylabel="sup_{0<=s<=t} |E[f(X_s)] - true|",
         labels=["AR", "DC"],
     )
 
