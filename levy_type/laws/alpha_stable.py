@@ -72,7 +72,7 @@ class AlphaStableDC(JumpLaw):
         dt = t_curr**power - t_prev**power
         return (
             self.h ** (self.eps * (2 - self.alpha) / self.alpha)
-            * (self._M ** (2 / self.alpha) * self.alpha**2)
+            * (self._M ** (2 / self.alpha) * self.alpha)
             * dt
             / (2 - self.alpha)
             / power
